@@ -87,6 +87,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 const DEFAULT_REPO = "yaramazyaman2013-crypto/ZekAI";
 const DEFAULT_BRANCH = "main";
 const DEFAULT_KEY = "AIzaSyDSqqmkATsiT4tavLPQ1r0fpVMWujGKmC0";
+const DEFAULT_GHTOKEN = "";  // Push protection nedeniyle PAT'i koda gömemiyoruz; tarayıcıdaki kutuya elle girin.
 
 const TEXT_EXT = ["txt","md","markdown","json","csv","html","htm","xml","yml","yaml",
                   "js","ts","py","java","c","cpp","h","cs","go","rs","rb","php","sh","sql","ini","toml","log"];
@@ -108,7 +109,7 @@ const booksBar = $("booksBar");
 $("repo").value    = localStorage.getItem("zekai_repo")    || DEFAULT_REPO;
 $("branch").value  = localStorage.getItem("zekai_branch")  || DEFAULT_BRANCH;
 $("apiKey").value  = localStorage.getItem("zekai_key")     || DEFAULT_KEY;
-$("ghToken").value = localStorage.getItem("zekai_ghtoken") || "";
+$("ghToken").value = localStorage.getItem("zekai_ghtoken") || DEFAULT_GHTOKEN;
 $("model").value   = localStorage.getItem("zekai_model")   || "gemini-2.0-flash";
 
 for (const id of ["repo","branch","apiKey","ghToken","model"]) {
