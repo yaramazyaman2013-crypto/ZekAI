@@ -1,41 +1,30 @@
 # ZekAI
 
 Depodaki PDF ve metin dosyalarına soru sorabileceğiniz, Vercel'de host edilen
-bir sohbet arayüzü. Groq API anahtarı ve GitHub PAT'i sunucu tarafında
-(Vercel Environment Variables) tutulur; tarayıcıya hiç inmez.
+bir sohbet arayüzü. Dosyalar **build zamanında** işlenir; sayfa açıldığında
+tek bir `data.json` indirip anında hazır olur.
 
 ## Vercel'de kurulum
 
-1. Bu depoyu Vercel'e import edin (yapmışsınız zaten).
-2. Vercel → Project → **Settings → Environment Variables** kısmından
-   aşağıdaki değerleri ekleyin (hepsi Production + Preview + Development):
-
-   | İsim | Değer |
-   |---|---|
-   | `GROQ_KEY` | console.groq.com/keys adresinden alınan Groq anahtarı |
-   | `GITHUB_PAT` | github.com → Settings → Developer settings → Personal access tokens (fine-grained) → ZekAI deposu için **Contents: Read-only** |
-   | `GITHUB_OWNER` *(opsiyonel)* | varsayılan: `yaramazyaman2013-crypto` |
-   | `GITHUB_REPO` *(opsiyonel)* | varsayılan: `ZekAI` |
-   | `GITHUB_BRANCH` *(opsiyonel)* | varsayılan: `main` |
-
-3. **Deployments** sekmesinden son deployment'ı **Redeploy** yapın
-   (env var'lar yalnız yeni deploy'da yüklenir).
-4. Vercel URL'sini açın. Sayfa otomatik olarak depodaki PDF ve metin
-   dosyalarını yükler, soru sorabilirsiniz.
+1. Bu depoyu Vercel'e import edin.
+2. **Settings → Environment Variables** → ekleyin:
+   - `GROQ_KEY` — console.groq.com/keys adresinden alınan Groq anahtarı.
+3. **Deployments** → son deployment → **Redeploy** (env var yeni deploy'da yüklenir).
+4. Vercel URL'sini açın. Depo dosyaları anında hazır olur.
 
 ## Mimari
 
-- `index.html` — tek sayfalık UI, PDF.js ile PDF metni çıkarır
-- `api/groq.js` — Groq API proxy'si, `GROQ_KEY` env var'ını kullanır
-- `api/github.js` — GitHub Contents API proxy'si, `GITHUB_PAT`'i kullanır
+- `index.html` — tek sayfalık UI. Açılışta `/data.json`'u çeker, hazır.
+- `api/groq.js` — Groq (OpenAI-uyumlu) proxy; `GROQ_KEY`'i sunucuda tutar.
+- `scripts/build-data.js` — depoyu tarar, PDF'leri `pdf-parse` ile metne
+  çevirir, hepsini `data.json` olarak yazar.
+- `vercel.json` — Vercel'e `npm run build` komutunu çalıştırmasını söyler.
+- `package.json` — `pdf-parse` bağımlılığı ve `build` script'i.
 
-Bu sayede public depo + güvenli anahtarlar mümkün: anahtarlar sadece
-Vercel'in sunucu çalışma ortamında bulunur, statik koda ya da tarayıcıya
-hiç dahil olmaz.
+`data.json` `.gitignore`'da; depoya commit edilmez, her deploy'da Vercel
+üretir.
 
 ## Yeni dosya ekleyince
 
-Depoya yeni PDF/metin push'layın → Vercel otomatik yeniden deploy eder
-(commit tetiklerse) ya da `/api/github?op=list` zaten her sayfa yüklemesinde
-güncel listeyi alır. Sayfada **"Depoyu Yeniden Yükle"** butonuna basmanız
-yeterli.
+Depoya yeni PDF/metin push'layın → Vercel otomatik yeniden build eder,
+yeni `data.json` üretir. Sayfa bir sonraki açılışta yeni içerikle gelir.

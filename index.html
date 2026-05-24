@@ -4,7 +4,6 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ZekAI - Depo Sohbet</title>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
 <style>
   :root {
     --bg: #0f1115; --panel: #171a21; --border: #262b36;
@@ -76,13 +75,6 @@
 </footer>
 
 <script>
-pdfjsLib.GlobalWorkerOptions.workerSrc =
-  "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
-
-const TEXT_EXT = ["txt","md","markdown","json","csv","html","htm","xml","yml","yaml",
-                  "js","ts","py","java","c","cpp","h","cs","go","rs","rb","php","sh","sql","ini","toml","log"];
-const PDF_EXT = ["pdf"];
-
 const state = { files: [], history: [], ready: false };
 
 const $ = id => document.getElementById(id);
@@ -121,74 +113,22 @@ function renderBooks() {
   }
 }
 
-async function listRepoFiles() {
-  const r = await fetch("/api/github?op=list");
-  if (!r.ok) throw new Error("Depo listelenemedi: " + r.status + " " + await r.text());
-  const data = await r.json();
-  const out = [];
-  for (const e of data.tree || []) {
-    if (e.type !== "blob") continue;
-    const ext = (e.path.split(".").pop() || "").toLowerCase();
-    if (!TEXT_EXT.includes(ext) && !PDF_EXT.includes(ext)) continue;
-    if (e.path === "index.html") continue;
-    if (e.path.startsWith("api/")) continue;
-    if (e.size && e.size > 25 * 1024 * 1024) continue;
-    out.push({ path: e.path, ext, size: e.size });
-  }
-  return out;
-}
-
-async function fetchBlob(path) {
-  const r = await fetch("/api/github?op=file&path=" + encodeURIComponent(path));
-  if (!r.ok) throw new Error("Dosya indirilemedi: " + r.status);
-  return await r.arrayBuffer();
-}
-
-async function extractPdfText(path) {
-  const data = await fetchBlob(path);
-  const pdf = await pdfjsLib.getDocument({ data }).promise;
-  let text = "";
-  for (let i = 1; i <= pdf.numPages; i++) {
-    const page = await pdf.getPage(i);
-    const c = await page.getTextContent();
-    text += c.items.map(it => it.str).join(" ") + "\n\n";
-    if (i % 25 === 0) setStatus(`PDF sayfa ${i}/${pdf.numPages}`);
-  }
-  return text;
-}
-
-async function fetchText(path) {
-  const buf = await fetchBlob(path);
-  return new TextDecoder("utf-8").decode(buf);
-}
-
 async function loadAll() {
   $("refreshBtn").disabled = true;
   state.ready = false;
   sendBtn.disabled = true;
   try {
-    setStatus("Depo taranıyor…");
-    const files = await listRepoFiles();
-    state.files = files;
+    setStatus("Veri yükleniyor…");
+    const r = await fetch("/data.json", { cache: "no-store" });
+    if (!r.ok) throw new Error("data.json bulunamadı (" + r.status + "). Vercel build'i çalıştı mı?");
+    const data = await r.json();
+    state.files = data.files || [];
     renderBooks();
-    if (files.length === 0) { setStatus("Uygun dosya bulunamadı."); return; }
-    let i = 0;
-    for (const f of files) {
-      i++;
-      setStatus(`(${i}/${files.length}) Yükleniyor: ${f.path}`);
-      try {
-        if (PDF_EXT.includes(f.ext)) f.text = await extractPdfText(f.path);
-        else f.text = await fetchText(f.path);
-      } catch (e) {
-        f.text = "";
-        console.warn("Hata", f.path, e);
-      }
-      renderBooks();
-    }
     state.ready = true;
     sendBtn.disabled = false;
-    const ok = files.filter(x=>x.text).length;
-    setStatus(`Hazır. ${ok}/${files.length} dosya yüklendi.`);
+    const ok = state.files.filter(x=>x.text).length;
+    const when = data.generatedAt ? new Date(data.generatedAt).toLocaleString("tr") : "?";
+    setStatus(`Hazır. ${ok} dosya · build: ${when}`);
     if (chatEl.children.length === 0)
       addMsg("bot", `Depodaki ${ok} dosyayı okudum. Sormak istediğinizi yazın.`);
   } catch (e) {

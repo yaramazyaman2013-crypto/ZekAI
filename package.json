@@ -1,0 +1,12 @@
+{
+  "name": "zekai",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-data.js"
+  },
+  "dependencies": {
+    "pdf-parse": "^1.1.1"
+  }
+}
