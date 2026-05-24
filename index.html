@@ -20,11 +20,9 @@
   .status { font-size:12px; color:var(--muted); }
   .controls { padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--border);
     display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
-  .controls input, .controls select, .controls button {
+  .controls select, .controls button {
     background:#11141a; color:var(--text); border:1px solid var(--border);
     padding:8px 10px; border-radius:6px; font-size:13px; }
-  .controls input[type=password] { width:260px; }
-  .controls input[type=text] { width:200px; }
   .controls button { cursor:pointer; }
   .controls button.primary { background:var(--accent); border-color:var(--accent); color:#fff; }
   .controls button:disabled { opacity:0.5; cursor:not-allowed; }
@@ -58,17 +56,12 @@
 </header>
 
 <div class="controls">
-  <input id="repo" type="text" placeholder="owner/repo" />
-  <input id="branch" type="text" placeholder="branch" />
-  <input id="ghToken" type="password" placeholder="GitHub PAT (private depo için)" />
-  <input id="worker" type="text" placeholder="Worker URL (önerilen)" />
-  <input id="apiKey" type="password" placeholder="Gemini key (Worker yoksa)" />
   <select id="model">
     <option value="gemini-2.0-flash">gemini-2.0-flash</option>
     <option value="gemini-2.5-flash">gemini-2.5-flash</option>
     <option value="gemini-2.5-pro">gemini-2.5-pro</option>
   </select>
-  <button id="refreshBtn" class="primary">Depoyu Tara & Yükle</button>
+  <button id="refreshBtn" class="primary">Depoyu Yeniden Yükle</button>
   <button id="clearBtn">Sohbeti Temizle</button>
 </div>
 
@@ -85,21 +78,11 @@
 pdfjsLib.GlobalWorkerOptions.workerSrc =
   "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
 
-const DEFAULT_REPO = "yaramazyaman2013-crypto/ZekAI";
-const DEFAULT_BRANCH = "main";
-const DEFAULT_KEY = "";        // Worker kullanmıyorsan tarayıcıdaki kutuya gir.
-const DEFAULT_WORKER = "";     // Cloudflare Worker URL'in (workers-deploy.md'ye bak).
-const DEFAULT_GHTOKEN = "";    // Private depo için PAT; tarayıcıdaki kutuya gir.
-
 const TEXT_EXT = ["txt","md","markdown","json","csv","html","htm","xml","yml","yaml",
                   "js","ts","py","java","c","cpp","h","cs","go","rs","rb","php","sh","sql","ini","toml","log"];
 const PDF_EXT = ["pdf"];
 
-const state = {
-  files: [],            // {path, ext, sha, size, url, text}
-  history: [],
-  ready: false,
-};
+const state = { files: [], history: [], ready: false };
 
 const $ = id => document.getElementById(id);
 const chatEl = $("chat");
@@ -108,45 +91,8 @@ const sendBtn = $("sendBtn");
 const inputEl = $("input");
 const booksBar = $("booksBar");
 
-$("repo").value    = localStorage.getItem("zekai_repo")    || DEFAULT_REPO;
-$("branch").value  = localStorage.getItem("zekai_branch")  || DEFAULT_BRANCH;
-$("apiKey").value  = localStorage.getItem("zekai_key")     || DEFAULT_KEY;
-$("worker").value  = localStorage.getItem("zekai_worker")  || DEFAULT_WORKER;
-$("ghToken").value = localStorage.getItem("zekai_ghtoken") || DEFAULT_GHTOKEN;
-$("model").value   = localStorage.getItem("zekai_model")   || "gemini-2.0-flash";
-
-// URL hash'inden konfigürasyon oku: index.html#worker=...&pat=...&key=...
-// Yer iminize bu linki kaydederseniz her açılışta otomatik dolar. Hash sunucuya gitmez.
-(function readHashConfig() {
-  if (!location.hash || location.hash.length < 2) return;
-  const params = new URLSearchParams(location.hash.slice(1));
-  const map = { pat: "ghToken", key: "apiKey", worker: "worker", repo: "repo", branch: "branch", model: "model" };
-  let changed = false;
-  for (const [k, field] of Object.entries(map)) {
-    const v = params.get(k);
-    if (v) {
-      $(field).value = v;
-      localStorage.setItem("zekai_" + field.toLowerCase(), v);
-      changed = true;
-    }
-  }
-  if (changed) {
-    // Hash'i adres çubuğundan temizle ki ekran paylaşırken görünmesin (kayıt zaten yapıldı).
-    history.replaceState(null, "", location.pathname + location.search);
-  }
-})();
-
-for (const id of ["repo","branch","apiKey","worker","ghToken","model"]) {
-  $(id).addEventListener("change", e => localStorage.setItem("zekai_"+id.toLowerCase(), e.target.value));
-}
-
-function ghHeaders(accept) {
-  const h = {};
-  if (accept) h["Accept"] = accept;
-  const tok = $("ghToken").value.trim();
-  if (tok) h["Authorization"] = "Bearer " + tok;
-  return h;
-}
+$("model").value = localStorage.getItem("zekai_model") || "gemini-2.0-flash";
+$("model").addEventListener("change", e => localStorage.setItem("zekai_model", e.target.value));
 
 function setStatus(t){ statusEl.textContent = t; }
 function addMsg(role, text) {
@@ -161,7 +107,7 @@ function addMsg(role, text) {
 function renderBooks() {
   booksBar.innerHTML = "";
   if (state.files.length === 0) {
-    booksBar.innerHTML = `<span class="status">Henüz dosya yok. "Depoyu Tara & Yükle"ye basın.</span>`;
+    booksBar.innerHTML = `<span class="status">Dosya yok.</span>`;
     return;
   }
   for (const f of state.files) {
@@ -174,14 +120,9 @@ function renderBooks() {
   }
 }
 
-async function listRepoFiles(owner, repo, branch) {
-  const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
-  const r = await fetch(url, { headers: ghHeaders("application/vnd.github+json") });
-  if (!r.ok) {
-    if (r.status === 401 || r.status === 403 || r.status === 404)
-      throw new Error("Depoya erişilemiyor (" + r.status + "). Private depo ise geçerli bir GitHub PAT girin.");
-    throw new Error("GitHub API: " + r.status + " " + await r.text());
-  }
+async function listRepoFiles() {
+  const r = await fetch("/api/github?op=list");
+  if (!r.ok) throw new Error("Depo listelenemedi: " + r.status + " " + await r.text());
   const data = await r.json();
   const out = [];
   for (const e of data.tree || []) {
@@ -189,26 +130,21 @@ async function listRepoFiles(owner, repo, branch) {
     const ext = (e.path.split(".").pop() || "").toLowerCase();
     if (!TEXT_EXT.includes(ext) && !PDF_EXT.includes(ext)) continue;
     if (e.path === "index.html") continue;
+    if (e.path.startsWith("api/")) continue;
     if (e.size && e.size > 25 * 1024 * 1024) continue;
-    // Private repolarda raw.githubusercontent.com Authorization header'ı kabul etmez.
-    // Bu yüzden contents API'yi raw media-type ile kullanırız.
-    out.push({
-      path: e.path, ext, sha: e.sha, size: e.size,
-      url: `https://api.github.com/repos/${owner}/${repo}/contents/${e.path
-              .split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(branch)}`
-    });
+    out.push({ path: e.path, ext, size: e.size });
   }
   return out;
 }
 
-async function fetchBlob(url) {
-  const r = await fetch(url, { headers: ghHeaders("application/vnd.github.raw") });
+async function fetchBlob(path) {
+  const r = await fetch("/api/github?op=file&path=" + encodeURIComponent(path));
   if (!r.ok) throw new Error("Dosya indirilemedi: " + r.status);
   return await r.arrayBuffer();
 }
 
-async function extractPdfText(url) {
-  const data = await fetchBlob(url);
+async function extractPdfText(path) {
+  const data = await fetchBlob(path);
   const pdf = await pdfjsLib.getDocument({ data }).promise;
   let text = "";
   for (let i = 1; i <= pdf.numPages; i++) {
@@ -220,8 +156,8 @@ async function extractPdfText(url) {
   return text;
 }
 
-async function fetchText(url) {
-  const buf = await fetchBlob(url);
+async function fetchText(path) {
+  const buf = await fetchBlob(path);
   return new TextDecoder("utf-8").decode(buf);
 }
 
@@ -230,12 +166,8 @@ async function loadAll() {
   state.ready = false;
   sendBtn.disabled = true;
   try {
-    const repo = $("repo").value.trim();
-    const branch = $("branch").value.trim() || "main";
-    const [owner, name] = repo.split("/");
-    if (!owner || !name) throw new Error("Depo adı 'kullanici/repo' biçiminde olmalı.");
-    setStatus(`Depo taranıyor: ${repo}@${branch}`);
-    const files = await listRepoFiles(owner, name, branch);
+    setStatus("Depo taranıyor…");
+    const files = await listRepoFiles();
     state.files = files;
     renderBooks();
     if (files.length === 0) { setStatus("Uygun dosya bulunamadı."); return; }
@@ -244,8 +176,8 @@ async function loadAll() {
       i++;
       setStatus(`(${i}/${files.length}) Yükleniyor: ${f.path}`);
       try {
-        if (PDF_EXT.includes(f.ext)) f.text = await extractPdfText(f.url);
-        else f.text = await fetchText(f.url);
+        if (PDF_EXT.includes(f.ext)) f.text = await extractPdfText(f.path);
+        else f.text = await fetchText(f.path);
       } catch (e) {
         f.text = "";
         console.warn("Hata", f.path, e);
@@ -254,8 +186,10 @@ async function loadAll() {
     }
     state.ready = true;
     sendBtn.disabled = false;
-    setStatus(`Hazır. ${files.filter(x=>x.text).length}/${files.length} dosya yüklendi.`);
-    addMsg("bot", `Depodaki ${files.filter(x=>x.text).length} dosyayı okudum. Sormak istediğinizi yazın.`);
+    const ok = files.filter(x=>x.text).length;
+    setStatus(`Hazır. ${ok}/${files.length} dosya yüklendi.`);
+    if (chatEl.children.length === 0)
+      addMsg("bot", `Depodaki ${ok} dosyayı okudum. Sormak istediğinizi yazın.`);
   } catch (e) {
     setStatus("Hata: " + e.message);
     addMsg("sys", e.message);
@@ -267,7 +201,6 @@ async function loadAll() {
 $("refreshBtn").onclick = loadAll;
 $("clearBtn").onclick = () => { state.history = []; chatEl.innerHTML = ""; };
 
-// Basit pasaj seçici
 function findRelevantSnippets(query, perFileChars = 4000, maxFiles = 8) {
   const stop = new Set(["ve","ile","bir","bu","şu","ne","mi","mı","mu","mü","da","de","ki","için","gibi","göre","nedir","kimdir","nasıl","the","a","an","of","is","what","who","how"]);
   const terms = query.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu," ").split(/\s+/)
@@ -309,9 +242,6 @@ function findRelevantSnippets(query, perFileChars = 4000, maxFiles = 8) {
 }
 
 async function askGemini(query) {
-  const worker = $("worker").value.trim().replace(/\/$/, "");
-  const apiKey = $("apiKey").value.trim();
-  if (!worker && !apiKey) throw new Error("Worker URL ya da Gemini key girin.");
   const model = $("model").value;
   const context = findRelevantSnippets(query);
   const sys = `Sen ZekAI'sın. Aşağıdaki depo dosyalarından elde edilen pasajlara dayanarak Türkçe yanıt ver. Cevabını verdiğin dosyayı parantez içinde belirt (örn: (1984.pdf)). Pasajlarda yanıt yoksa "Depoda bu bilgi bulunmuyor" de.
@@ -324,20 +254,14 @@ ${context}`;
     contents.push({ role: m.role === "user" ? "user" : "model", parts: [{ text: m.text }] });
   contents.push({ role: "user", parts: [{ text: query }] });
 
-  const payload = JSON.stringify({
-    systemInstruction: { parts: [{ text: sys }] },
-    contents,
-    generationConfig: { temperature: 0.4, maxOutputTokens: 1500 }
-  });
-
-  const url = worker
-    ? `${worker}?model=${encodeURIComponent(model)}`
-    : `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(apiKey)}`;
-
-  const resp = await fetch(url, {
+  const resp = await fetch("/api/gemini?model=" + encodeURIComponent(model), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: payload,
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: sys }] },
+      contents,
+      generationConfig: { temperature: 0.4, maxOutputTokens: 1500 }
+    }),
   });
   if (!resp.ok) throw new Error("API: " + resp.status + " " + await resp.text());
   const data = await resp.json();
@@ -369,7 +293,6 @@ inputEl.addEventListener("keydown", e => {
   if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); send(); }
 });
 
-// Başlangıçta otomatik yükle
 window.addEventListener("load", () => { renderBooks(); loadAll(); });
 </script>
 </body>
