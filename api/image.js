@@ -1,7 +1,9 @@
-// Vercel Serverless Function: Together AI image proxy
-// Endpoint: /api/image
-// Body: { prompt: "...", width?: 1024, height?: 1024 }
-// Env var: TOGETHER_KEY
+// Vercel Serverless Function: image generation proxy.
+// Önce Together AI denenir (TOGETHER_KEY varsa); hata/402 durumunda
+// otomatik olarak Pollinations.ai'ye düşer (anahtarsız, ücretsiz).
+// Endpoint: /api/image  Body: { prompt, width?, height? }
+
+export const config = { maxDuration: 60 };
 
 export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", "*");
@@ -11,12 +13,7 @@ export default async function handler(req, res) {
       .setHeader("Access-Control-Allow-Headers", "Content-Type")
       .end();
   }
-  if (req.method !== "POST") {
-    return res.status(405).json({ error: "POST only" });
-  }
-
-  const key = process.env.TOGETHER_KEY;
-  if (!key) return res.status(500).json({ error: "TOGETHER_KEY env var ayarlanmamış" });
+  if (req.method !== "POST") return res.status(405).json({ error: "POST only" });
 
   let body;
   try { body = typeof req.body === "string" ? JSON.parse(req.body) : (req.body || {}); }
@@ -29,25 +26,46 @@ export default async function handler(req, res) {
   const width  = Math.min(Math.max(parseInt(body.width)  || 1024, 256), 1440);
   const height = Math.min(Math.max(parseInt(body.height) || 1024, 256), 1440);
 
-  const r = await fetch("https://api.together.xyz/v1/images/generations", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      "Authorization": "Bearer " + key,
-    },
-    body: JSON.stringify({
-      model: "black-forest-labs/FLUX.1-schnell-Free",
-      prompt,
-      width,
-      height,
-      steps: 4,
-      n: 1,
-      response_format: "b64_json",
-    }),
-  });
+  // 1) Together AI varsa onu dene.
+  if (process.env.TOGETHER_KEY) {
+    try {
+      const r = await fetch("https://api.together.xyz/v1/images/generations", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer " + process.env.TOGETHER_KEY,
+        },
+        body: JSON.stringify({
+          model: "black-forest-labs/FLUX.1-schnell-Free",
+          prompt, width, height, steps: 4, n: 1,
+          response_format: "b64_json",
+        }),
+      });
+      if (r.ok) {
+        const text = await r.text();
+        return res.status(200).setHeader("Content-Type","application/json").send(text);
+      }
+      console.warn("Together AI hata, Pollinations'a düşülüyor:", r.status, await r.text());
+    } catch (e) {
+      console.warn("Together AI exception, Pollinations'a düşülüyor:", e.message);
+    }
+  }
 
-  const text = await r.text();
-  res.status(r.status)
-     .setHeader("Content-Type", "application/json")
-     .send(text);
+  // 2) Pollinations.ai — anahtarsız, ücretsiz fallback.
+  try {
+    const seed = Math.floor(Math.random() * 1_000_000);
+    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
+                `?width=${width}&height=${height}&seed=${seed}&model=flux&nologo=true&private=true`;
+    const r = await fetch(url);
+    if (!r.ok) {
+      return res.status(r.status).json({ error: "Pollinations hata: " + r.status });
+    }
+    const buf = Buffer.from(await r.arrayBuffer());
+    const b64 = buf.toString("base64");
+    return res.status(200)
+      .setHeader("Content-Type","application/json")
+      .json({ data: [{ b64_json: b64 }] });
+  } catch (e) {
+    return res.status(502).json({ error: "Resim üretilemedi: " + e.message });
+  }
 }
