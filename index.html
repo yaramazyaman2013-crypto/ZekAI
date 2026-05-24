@@ -60,6 +60,7 @@
 <div class="controls">
   <input id="repo" type="text" placeholder="owner/repo" />
   <input id="branch" type="text" placeholder="branch" />
+  <input id="ghToken" type="password" placeholder="GitHub PAT (private depo için)" />
   <input id="apiKey" type="password" placeholder="Gemini API key" />
   <select id="model">
     <option value="gemini-2.0-flash">gemini-2.0-flash</option>
@@ -86,6 +87,7 @@ pdfjsLib.GlobalWorkerOptions.workerSrc =
 const DEFAULT_REPO = "yaramazyaman2013-crypto/ZekAI";
 const DEFAULT_BRANCH = "main";
 const DEFAULT_KEY = "AIzaSyDSqqmkATsiT4tavLPQ1r0fpVMWujGKmC0";
+const DEFAULT_GHTOKEN = "";  // Push protection nedeniyle PAT'i koda gömemiyoruz; tarayıcıdaki kutuya elle girin.
 
 const TEXT_EXT = ["txt","md","markdown","json","csv","html","htm","xml","yml","yaml",
                   "js","ts","py","java","c","cpp","h","cs","go","rs","rb","php","sh","sql","ini","toml","log"];
@@ -104,13 +106,22 @@ const sendBtn = $("sendBtn");
 const inputEl = $("input");
 const booksBar = $("booksBar");
 
-$("repo").value   = localStorage.getItem("zekai_repo")   || DEFAULT_REPO;
-$("branch").value = localStorage.getItem("zekai_branch") || DEFAULT_BRANCH;
-$("apiKey").value = localStorage.getItem("zekai_key")    || DEFAULT_KEY;
-$("model").value  = localStorage.getItem("zekai_model")  || "gemini-2.0-flash";
+$("repo").value    = localStorage.getItem("zekai_repo")    || DEFAULT_REPO;
+$("branch").value  = localStorage.getItem("zekai_branch")  || DEFAULT_BRANCH;
+$("apiKey").value  = localStorage.getItem("zekai_key")     || DEFAULT_KEY;
+$("ghToken").value = localStorage.getItem("zekai_ghtoken") || DEFAULT_GHTOKEN;
+$("model").value   = localStorage.getItem("zekai_model")   || "gemini-2.0-flash";
 
-for (const id of ["repo","branch","apiKey","model"]) {
-  $(id).addEventListener("change", e => localStorage.setItem("zekai_"+id, e.target.value));
+for (const id of ["repo","branch","apiKey","ghToken","model"]) {
+  $(id).addEventListener("change", e => localStorage.setItem("zekai_"+id.toLowerCase(), e.target.value));
+}
+
+function ghHeaders(accept) {
+  const h = {};
+  if (accept) h["Accept"] = accept;
+  const tok = $("ghToken").value.trim();
+  if (tok) h["Authorization"] = "Bearer " + tok;
+  return h;
 }
 
 function setStatus(t){ statusEl.textContent = t; }
@@ -141,27 +152,40 @@ function renderBooks() {
 
 async function listRepoFiles(owner, repo, branch) {
   const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${branch}?recursive=1`;
-  const r = await fetch(url);
-  if (!r.ok) throw new Error("GitHub API: " + r.status + " " + await r.text());
+  const r = await fetch(url, { headers: ghHeaders("application/vnd.github+json") });
+  if (!r.ok) {
+    if (r.status === 401 || r.status === 403 || r.status === 404)
+      throw new Error("Depoya erişilemiyor (" + r.status + "). Private depo ise geçerli bir GitHub PAT girin.");
+    throw new Error("GitHub API: " + r.status + " " + await r.text());
+  }
   const data = await r.json();
   const out = [];
   for (const e of data.tree || []) {
     if (e.type !== "blob") continue;
     const ext = (e.path.split(".").pop() || "").toLowerCase();
     if (!TEXT_EXT.includes(ext) && !PDF_EXT.includes(ext)) continue;
-    if (e.path === "index.html") continue;       // kendi kendini yutmasın
-    if (e.size && e.size > 25 * 1024 * 1024) continue;  // 25MB üstünü atla
+    if (e.path === "index.html") continue;
+    if (e.size && e.size > 25 * 1024 * 1024) continue;
+    // Private repolarda raw.githubusercontent.com Authorization header'ı kabul etmez.
+    // Bu yüzden contents API'yi raw media-type ile kullanırız.
     out.push({
       path: e.path, ext, sha: e.sha, size: e.size,
-      url: `https://raw.githubusercontent.com/${owner}/${repo}/${branch}/${e.path
-              .split("/").map(encodeURIComponent).join("/")}`
+      url: `https://api.github.com/repos/${owner}/${repo}/contents/${e.path
+              .split("/").map(encodeURIComponent).join("/")}?ref=${encodeURIComponent(branch)}`
     });
   }
   return out;
 }
 
+async function fetchBlob(url) {
+  const r = await fetch(url, { headers: ghHeaders("application/vnd.github.raw") });
+  if (!r.ok) throw new Error("Dosya indirilemedi: " + r.status);
+  return await r.arrayBuffer();
+}
+
 async function extractPdfText(url) {
-  const pdf = await pdfjsLib.getDocument({ url, withCredentials: false }).promise;
+  const data = await fetchBlob(url);
+  const pdf = await pdfjsLib.getDocument({ data }).promise;
   let text = "";
   for (let i = 1; i <= pdf.numPages; i++) {
     const page = await pdf.getPage(i);
@@ -173,9 +197,8 @@ async function extractPdfText(url) {
 }
 
 async function fetchText(url) {
-  const r = await fetch(url);
-  if (!r.ok) throw new Error("Dosya indirilemedi: " + r.status);
-  return await r.text();
+  const buf = await fetchBlob(url);
+  return new TextDecoder("utf-8").decode(buf);
 }
 
 async function loadAll() {
