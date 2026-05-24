@@ -112,6 +112,27 @@ $("apiKey").value  = localStorage.getItem("zekai_key")     || DEFAULT_KEY;
 $("ghToken").value = localStorage.getItem("zekai_ghtoken") || DEFAULT_GHTOKEN;
 $("model").value   = localStorage.getItem("zekai_model")   || "gemini-2.0-flash";
 
+// URL hash'inden konfigürasyon oku: index.html#pat=...&key=...&repo=owner/repo&branch=main&model=...
+// Yer iminize bu linki kaydederseniz her açılışta otomatik dolar. Hash sunucuya gitmez.
+(function readHashConfig() {
+  if (!location.hash || location.hash.length < 2) return;
+  const params = new URLSearchParams(location.hash.slice(1));
+  const map = { pat: "ghToken", key: "apiKey", repo: "repo", branch: "branch", model: "model" };
+  let changed = false;
+  for (const [k, field] of Object.entries(map)) {
+    const v = params.get(k);
+    if (v) {
+      $(field).value = v;
+      localStorage.setItem("zekai_" + field.toLowerCase(), v);
+      changed = true;
+    }
+  }
+  if (changed) {
+    // Hash'i adres çubuğundan temizle ki ekran paylaşırken görünmesin (kayıt zaten yapıldı).
+    history.replaceState(null, "", location.pathname + location.search);
+  }
+})();
+
 for (const id of ["repo","branch","apiKey","ghToken","model"]) {
   $(id).addEventListener("change", e => localStorage.setItem("zekai_"+id.toLowerCase(), e.target.value));
 }
