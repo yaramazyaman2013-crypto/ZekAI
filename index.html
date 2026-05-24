@@ -4,6 +4,7 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 <title>ZekAI</title>
+<link rel="icon" type="image/svg+xml" href="/logo.svg" />
 <style>
   :root {
     --bg: #0f1115; --panel: #171a21; --border: #262b36;
@@ -15,6 +16,7 @@
     background:var(--bg); color:var(--text); display:flex; flex-direction:column; height:100vh; }
   header { padding:12px 16px; background:var(--panel); border-bottom:1px solid var(--border);
     display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+  header img.logo { height:40px; width:auto; display:block; }
   header h1 { margin:0; font-size:18px; }
   .hint { font-size:12px; color:var(--muted); }
   .controls { padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--border);
@@ -44,7 +46,7 @@
 <body>
 
 <header>
-  <h1>🤖 ZekAI</h1>
+  <img src="/logo.svg" alt="ZekAI" class="logo" />
   <span class="hint">Resim için: <code>/resim &lt;açıklama&gt;</code></span>
 </header>
 

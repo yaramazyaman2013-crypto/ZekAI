@@ -1,0 +1,13 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 480" width="600" height="480">
+  <!-- Yıldırım -->
+  <path d="M 175 30 L 60 280 L 145 280 L 95 450 L 285 200 L 195 200 Z"
+        fill="#FFE600" stroke="#000" stroke-width="14" stroke-linejoin="round"/>
+  <!-- ZEK metni -->
+  <text x="240" y="290" font-family="Impact, 'Arial Black', sans-serif"
+        font-weight="900" font-size="220" fill="#000"
+        stroke="#FFE600" stroke-width="10" paint-order="stroke">Zek</text>
+  <!-- AI metni -->
+  <text x="280" y="430" font-family="Impact, 'Arial Black', sans-serif"
+        font-weight="900" font-style="italic" font-size="120"
+        fill="#B9F542" stroke="#000" stroke-width="6" paint-order="stroke">AI</text>
+</svg>
