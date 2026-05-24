@@ -87,24 +87,14 @@ export default async function handler(req, res) {
     }
   }
 
-  // 2) Pollinations.ai fallback
-  try {
-    const seed = Math.floor(Math.random() * 1_000_000);
-    const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
-                `?width=${width}&height=${height}&seed=${seed}` +
-                `&model=flux&nologo=true&private=true&safe=false`;
-    const r = await fetch(url, {
-      headers: { "Referer": "https://zekai.vercel.app" },
-    });
-    if (!r.ok) {
-      return res.status(r.status).json({ error: "Pollinations hata: " + r.status });
-    }
-    const buf = Buffer.from(await r.arrayBuffer());
-    return res.status(200).json({
-      data: [{ b64_json: buf.toString("base64") }],
-      refined_prompt: prompt,
-    });
-  } catch (e) {
-    return res.status(502).json({ error: "Resim üretilemedi: " + e.message });
-  }
+  // 2) Pollinations.ai fallback — URL'i tarayıcıya döner; tarayıcı kendi
+  // yükler ki Vercel'in 10 sn serverless timeout'una takılmasın.
+  const seed = Math.floor(Math.random() * 1_000_000);
+  const url = `https://image.pollinations.ai/prompt/${encodeURIComponent(prompt)}` +
+              `?width=${width}&height=${height}&seed=${seed}` +
+              `&model=flux&nologo=true&private=true&safe=false`;
+  return res.status(200).json({
+    data: [{ url }],
+    refined_prompt: prompt,
+  });
 }
