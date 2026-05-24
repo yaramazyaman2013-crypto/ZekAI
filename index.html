@@ -57,9 +57,10 @@
 
 <div class="controls">
   <select id="model">
-    <option value="gemini-2.0-flash">gemini-2.0-flash</option>
-    <option value="gemini-2.5-flash">gemini-2.5-flash</option>
-    <option value="gemini-2.5-pro">gemini-2.5-pro</option>
+    <option value="llama-3.3-70b-versatile">llama-3.3-70b-versatile</option>
+    <option value="llama-3.1-8b-instant">llama-3.1-8b-instant</option>
+    <option value="deepseek-r1-distill-llama-70b">deepseek-r1-distill-llama-70b</option>
+    <option value="gemma2-9b-it">gemma2-9b-it</option>
   </select>
   <button id="refreshBtn" class="primary">Depoyu Yeniden Yükle</button>
   <button id="clearBtn">Sohbeti Temizle</button>
@@ -91,7 +92,7 @@ const sendBtn = $("sendBtn");
 const inputEl = $("input");
 const booksBar = $("booksBar");
 
-$("model").value = localStorage.getItem("zekai_model") || "gemini-2.0-flash";
+$("model").value = localStorage.getItem("zekai_model") || "llama-3.3-70b-versatile";
 $("model").addEventListener("change", e => localStorage.setItem("zekai_model", e.target.value));
 
 function setStatus(t){ statusEl.textContent = t; }
@@ -241,7 +242,7 @@ function findRelevantSnippets(query, perFileChars = 4000, maxFiles = 8) {
   return parts.join("\n\n");
 }
 
-async function askGemini(query) {
+async function askLLM(query) {
   const model = $("model").value;
   const context = findRelevantSnippets(query);
   const sys = `Sen ZekAI'sın. Aşağıdaki depo dosyalarından elde edilen pasajlara dayanarak Türkçe yanıt ver. Cevabını verdiğin dosyayı parantez içinde belirt (örn: (1984.pdf)). Pasajlarda yanıt yoksa "Depoda bu bilgi bulunmuyor" de.
@@ -249,23 +250,23 @@ async function askGemini(query) {
 PASAJLAR:
 ${context}`;
 
-  const contents = [];
+  const messages = [{ role: "system", content: sys }];
   for (const m of state.history)
-    contents.push({ role: m.role === "user" ? "user" : "model", parts: [{ text: m.text }] });
-  contents.push({ role: "user", parts: [{ text: query }] });
+    messages.push({ role: m.role === "user" ? "user" : "assistant", content: m.text });
+  messages.push({ role: "user", content: query });
 
-  const resp = await fetch("/api/gemini?model=" + encodeURIComponent(model), {
+  const resp = await fetch("/api/groq?model=" + encodeURIComponent(model), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({
-      systemInstruction: { parts: [{ text: sys }] },
-      contents,
-      generationConfig: { temperature: 0.4, maxOutputTokens: 1500 }
+      messages,
+      temperature: 0.4,
+      max_tokens: 1500,
     }),
   });
   if (!resp.ok) throw new Error("API: " + resp.status + " " + await resp.text());
   const data = await resp.json();
-  return data?.candidates?.[0]?.content?.parts?.map(p=>p.text).join("\n") || "(Boş yanıt)";
+  return data?.choices?.[0]?.message?.content || "(Boş yanıt)";
 }
 
 async function send() {
@@ -277,7 +278,7 @@ async function send() {
   const thinking = addMsg("bot", "Düşünüyor…");
   sendBtn.disabled = true;
   try {
-    const ans = await askGemini(q);
+    const ans = await askLLM(q);
     thinking.textContent = ans;
     state.history.push({ role: "model", text: ans });
   } catch (e) {
