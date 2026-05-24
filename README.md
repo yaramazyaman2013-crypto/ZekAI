@@ -1,7 +1,7 @@
 # ZekAI
 
 Depodaki PDF ve metin dosyalarına soru sorabileceğiniz, Vercel'de host edilen
-bir sohbet arayüzü. Gemini API anahtarı ve GitHub PAT'i sunucu tarafında
+bir sohbet arayüzü. Groq API anahtarı ve GitHub PAT'i sunucu tarafında
 (Vercel Environment Variables) tutulur; tarayıcıya hiç inmez.
 
 ## Vercel'de kurulum
@@ -12,7 +12,7 @@ bir sohbet arayüzü. Gemini API anahtarı ve GitHub PAT'i sunucu tarafında
 
    | İsim | Değer |
    |---|---|
-   | `GEMINI_KEY` | aistudio.google.com/apikey adresinden alınan Gemini anahtarı |
+   | `GROQ_KEY` | console.groq.com/keys adresinden alınan Groq anahtarı |
    | `GITHUB_PAT` | github.com → Settings → Developer settings → Personal access tokens (fine-grained) → ZekAI deposu için **Contents: Read-only** |
    | `GITHUB_OWNER` *(opsiyonel)* | varsayılan: `yaramazyaman2013-crypto` |
    | `GITHUB_REPO` *(opsiyonel)* | varsayılan: `ZekAI` |
@@ -26,7 +26,7 @@ bir sohbet arayüzü. Gemini API anahtarı ve GitHub PAT'i sunucu tarafında
 ## Mimari
 
 - `index.html` — tek sayfalık UI, PDF.js ile PDF metni çıkarır
-- `api/gemini.js` — Gemini API proxy'si, `GEMINI_KEY` env var'ını kullanır
+- `api/groq.js` — Groq API proxy'si, `GROQ_KEY` env var'ını kullanır
 - `api/github.js` — GitHub Contents API proxy'si, `GITHUB_PAT`'i kullanır
 
 Bu sayede public depo + güvenli anahtarlar mümkün: anahtarlar sadece
