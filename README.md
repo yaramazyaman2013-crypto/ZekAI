@@ -1,41 +1,33 @@
 # ZekAI
 
-Depodaki PDF ve metin dosyalarına soru sorabileceğiniz, Vercel'de host edilen
-bir sohbet arayüzü. Groq API anahtarı ve GitHub PAT'i sunucu tarafında
-(Vercel Environment Variables) tutulur; tarayıcıya hiç inmez.
+Vercel'de host edilen sade bir Türkçe sohbet arayüzü. Groq ile metin
+yanıtlar, Together AI ile resim üretir.
 
-## Vercel'de kurulum
+## Vercel kurulumu
 
-1. Bu depoyu Vercel'e import edin (yapmışsınız zaten).
-2. Vercel → Project → **Settings → Environment Variables** kısmından
-   aşağıdaki değerleri ekleyin (hepsi Production + Preview + Development):
+1. Bu depoyu Vercel'e import edin.
+2. **Settings → Environment Variables** (Production + Preview + Development):
 
-   | İsim | Değer |
+   | İsim | Nereden |
    |---|---|
-   | `GROQ_KEY` | console.groq.com/keys adresinden alınan Groq anahtarı |
-   | `GITHUB_PAT` | github.com → Settings → Developer settings → Personal access tokens (fine-grained) → ZekAI deposu için **Contents: Read-only** |
-   | `GITHUB_OWNER` *(opsiyonel)* | varsayılan: `yaramazyaman2013-crypto` |
-   | `GITHUB_REPO` *(opsiyonel)* | varsayılan: `ZekAI` |
-   | `GITHUB_BRANCH` *(opsiyonel)* | varsayılan: `main` |
+   | `GROQ_KEY` | console.groq.com/keys |
+   | `TOGETHER_KEY` | api.together.xyz/settings/api-keys |
 
-3. **Deployments** sekmesinden son deployment'ı **Redeploy** yapın
-   (env var'lar yalnız yeni deploy'da yüklenir).
-4. Vercel URL'sini açın. Sayfa otomatik olarak depodaki PDF ve metin
-   dosyalarını yükler, soru sorabilirsiniz.
+3. **Deployments** → son deployment → **Redeploy**.
+4. Vercel URL'sini açın.
 
-## Mimari
+## Kullanım
 
-- `index.html` — tek sayfalık UI, PDF.js ile PDF metni çıkarır
-- `api/groq.js` — Groq API proxy'si, `GROQ_KEY` env var'ını kullanır
-- `api/github.js` — GitHub Contents API proxy'si, `GITHUB_PAT`'i kullanır
+- Normal sohbet: bir şey yazıp Enter'a basın.
+- Resim üretme: mesajı `/resim <açıklama>` ile başlatın
+  (örn: `/resim antik bir kütüphanede ışık huzmesi`).
+- İngilizce alternatifler de çalışır: `/img`, `/image`.
 
-Bu sayede public depo + güvenli anahtarlar mümkün: anahtarlar sadece
-Vercel'in sunucu çalışma ortamında bulunur, statik koda ya da tarayıcıya
-hiç dahil olmaz.
+## Dosyalar
 
-## Yeni dosya ekleyince
+- `index.html` — UI ve sohbet/resim mantığı
+- `api/groq.js` — Groq chat completions proxy (`GROQ_KEY`)
+- `api/image.js` — Together AI FLUX.1-schnell proxy (`TOGETHER_KEY`)
 
-Depoya yeni PDF/metin push'layın → Vercel otomatik yeniden deploy eder
-(commit tetiklerse) ya da `/api/github?op=list` zaten her sayfa yüklemesinde
-güncel listeyi alır. Sayfada **"Depoyu Yeniden Yükle"** butonuna basmanız
-yeterli.
+Anahtarlar yalnızca Vercel'in sunucu çalışma ortamında bulunur;
+tarayıcıya hiç inmez.
