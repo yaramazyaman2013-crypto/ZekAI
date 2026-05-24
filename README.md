@@ -1,30 +1,33 @@
 # ZekAI
 
-Depodaki PDF ve metin dosyalarına soru sorabileceğiniz, Vercel'de host edilen
-bir sohbet arayüzü. Dosyalar **build zamanında** işlenir; sayfa açıldığında
-tek bir `data.json` indirip anında hazır olur.
+Vercel'de host edilen sade bir Türkçe sohbet arayüzü. Groq ile metin
+yanıtlar, Together AI ile resim üretir.
 
-## Vercel'de kurulum
+## Vercel kurulumu
 
 1. Bu depoyu Vercel'e import edin.
-2. **Settings → Environment Variables** → ekleyin:
-   - `GROQ_KEY` — console.groq.com/keys adresinden alınan Groq anahtarı.
-3. **Deployments** → son deployment → **Redeploy** (env var yeni deploy'da yüklenir).
-4. Vercel URL'sini açın. Depo dosyaları anında hazır olur.
+2. **Settings → Environment Variables** (Production + Preview + Development):
 
-## Mimari
+   | İsim | Nereden |
+   |---|---|
+   | `GROQ_KEY` | console.groq.com/keys |
+   | `TOGETHER_KEY` | api.together.xyz/settings/api-keys |
 
-- `index.html` — tek sayfalık UI. Açılışta `/data.json`'u çeker, hazır.
-- `api/groq.js` — Groq (OpenAI-uyumlu) proxy; `GROQ_KEY`'i sunucuda tutar.
-- `scripts/build-data.js` — depoyu tarar, PDF'leri `pdf-parse` ile metne
-  çevirir, hepsini `data.json` olarak yazar.
-- `vercel.json` — Vercel'e `npm run build` komutunu çalıştırmasını söyler.
-- `package.json` — `pdf-parse` bağımlılığı ve `build` script'i.
+3. **Deployments** → son deployment → **Redeploy**.
+4. Vercel URL'sini açın.
 
-`data.json` `.gitignore`'da; depoya commit edilmez, her deploy'da Vercel
-üretir.
+## Kullanım
 
-## Yeni dosya ekleyince
+- Normal sohbet: bir şey yazıp Enter'a basın.
+- Resim üretme: mesajı `/resim <açıklama>` ile başlatın
+  (örn: `/resim antik bir kütüphanede ışık huzmesi`).
+- İngilizce alternatifler de çalışır: `/img`, `/image`.
 
-Depoya yeni PDF/metin push'layın → Vercel otomatik yeniden build eder,
-yeni `data.json` üretir. Sayfa bir sonraki açılışta yeni içerikle gelir.
+## Dosyalar
+
+- `index.html` — UI ve sohbet/resim mantığı
+- `api/groq.js` — Groq chat completions proxy (`GROQ_KEY`)
+- `api/image.js` — Together AI FLUX.1-schnell proxy (`TOGETHER_KEY`)
+
+Anahtarlar yalnızca Vercel'in sunucu çalışma ortamında bulunur;
+tarayıcıya hiç inmez.
