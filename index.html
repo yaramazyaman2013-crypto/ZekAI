@@ -16,7 +16,7 @@
     background:var(--bg); color:var(--text); display:flex; flex-direction:column; height:100vh; }
   header { padding:14px 20px; background:var(--panel); border-bottom:1px solid var(--border);
     display:flex; align-items:center; gap:16px; flex-wrap:wrap; }
-  header img.logo { height:80px; width:auto; display:block; }
+  header img.logo { height:120px; width:auto; display:block; }
   .hint { font-size:13px; color:var(--muted); }
   .controls { padding:10px 16px; background:var(--panel); border-bottom:1px solid var(--border);
     display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
@@ -132,22 +132,50 @@ function addMsg(role, text) {
   return msg;
 }
 
-function addImage(prompt, dataUrl) {
+function addImage(prompt, src, refined) {
   const row = makeRow("bot");
   const msg = document.createElement("div");
   msg.className = "msg";
   const cap = document.createElement("div");
   cap.textContent = "🎨 " + prompt;
+  msg.appendChild(cap);
+
+  if (refined && refined.trim() && refined.trim() !== prompt.trim()) {
+    const r = document.createElement("div");
+    r.style.cssText = "font-size:11px;color:var(--muted);margin-top:2px";
+    r.textContent = "↳ " + refined;
+    msg.appendChild(r);
+  }
+
+  const loading = document.createElement("div");
+  loading.style.cssText = "font-size:12px;color:var(--muted);margin-top:6px";
+  loading.textContent = "⏳ Resim yükleniyor… (15-40 sn sürebilir)";
+  msg.appendChild(loading);
+
   const img = document.createElement("img");
   img.className = "gen";
-  img.src = dataUrl;
   img.alt = prompt;
+  img.style.display = "none";
+
   const dl = document.createElement("a");
   dl.className = "dl";
-  dl.href = dataUrl;
+  dl.href = src;
   dl.download = "zekai-" + Date.now() + ".png";
   dl.textContent = "indir";
-  msg.append(cap, img, dl);
+  dl.style.display = "none";
+
+  img.onload = () => {
+    loading.remove();
+    img.style.display = "block";
+    dl.style.display = "inline-block";
+    chatEl.scrollTop = chatEl.scrollHeight;
+  };
+  img.onerror = () => {
+    loading.textContent = "❌ Resim yüklenemedi. Tekrar deneyin.";
+  };
+  img.src = src;
+
+  msg.append(img, dl);
   row.appendChild(msg);
   chatEl.appendChild(row);
   chatEl.scrollTop = chatEl.scrollHeight;
@@ -183,8 +211,9 @@ async function generateImage(prompt) {
   const data = await resp.json();
   const item = data?.data?.[0];
   if (!item) throw new Error("Resim dönmedi");
-  if (item.b64_json) return "data:image/png;base64," + item.b64_json;
-  if (item.url) return item.url;
+  const refined = data.refined_prompt;
+  if (item.b64_json) return { url: "data:image/png;base64," + item.b64_json, refined };
+  if (item.url) return { url: item.url, refined };
   throw new Error("Resim formatı tanınmadı");
 }
 
@@ -219,11 +248,11 @@ async function send() {
 }
 
 async function doImage(prompt) {
-  const placeholder = addMsg("bot", "🎨 Resim üretiliyor…");
+  const placeholder = addMsg("bot", "🎨 Prompt çevriliyor…");
   try {
-    const url = await generateImage(prompt);
+    const { url, refined } = await generateImage(prompt);
     placeholder.parentElement.remove();
-    addImage(prompt, url);
+    addImage(prompt, url, refined);
   } catch (e) {
     placeholder.parentElement.remove();
     addMsg("sys", e.message);
